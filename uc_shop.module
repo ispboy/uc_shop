@@ -1,0 +1,328 @@
+<?php
+/**
+ * @file
+ * ubercart for es88.tv.
+ * uc_shop
+ */
+
+/**
+ * Implements hook_menu().
+ * 
+ * Define menu items and page callbacks. This hook enables modules to register
+ * paths in order to define how URL requests are handled. Paths may be registered
+ * for URL handling only, or they can register a link to be placed in a menu
+ * (usually the Navigation menu). A path and its associated information is
+ * commonly called a "menu router item". This hook is rarely called (for example,
+ * when modules are enabled), and its results are cached in the database.
+ * hook_menu() implementations return an associative array whose keys define
+ * paths and whose values are an.
+ *
+ * @return
+ *   An array of menu items. Each menu item has a key corresponding to the Drupal
+ *   path being registered. The corresponding array value is an associative array
+ *   that may contain the following key-value pairs: "title": Required. The
+ *   untranslated title of the menu item. "title callback": Function to generate
+ *   the title; defaults to t(). If you require only the raw string to be output,
+ *   set this to FALSE. "title arguments": Arguments to send to t() or your
+ *   custom callback, with path component substitution as described above.
+ */
+function uc_shop_menu() {
+  $items = array();
+
+  $items['test/ucshop'] = array(
+    'title' => 'uc Shop test',
+    'page callback' => 'uc_shop_test',
+    'access arguments' => array('access devel information'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['shop/switch'] = array(
+    'page callback' => 'uc_shop_switch',
+    'file' => 'uc_shop_switch.inc',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['shop/intro'] = array(
+    'page callback' => 'uc_shop_intro',
+    'file' => 'uc_shop_intro.inc',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+
+  $items['shop/admincp'] = array(
+    'title' => '管理店铺',
+    'page callback' => 'uc_shop_admincp',
+    'file' => 'uc_shop_admincp.inc',
+    'access callback' => 'uc_shop_admincp_access',
+    'access arguments' => array('administer own domains'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['shop/admincp/orders'] = array(
+    'title' => '客户订单',
+    'page callback' => 'uc_shop_admincp_orders',
+    'page arguments' => array(NULL, NULL, FALSE),
+    'file' => 'uc_shop_admincp_orders.inc',
+    'access callback' => 'uc_shop_admincp_access',
+    'access arguments' => array('administer own domains'),
+    'type' => MENU_NORMAL_ITEM,
+//    'menu_name' => 'menu-shop-admincp',
+  );
+
+  return $items;
+}
+
+/**
+ *  test 
+ */
+function uc_shop_test() {
+//  $domain = $domain = domain_get_domain();
+//  $domains = domain_domains();
+//  dpm($domains);
+//  $sql = "SELECT `region_id`, `region_name` FROM {china_address}
+//          WHERE `region_id` IN (SELECT DISTINCT `field_address_province` FROM {content_type_shop})
+//          AND `region_type`=1
+//          UNION SELECT `region_id`, `region_name` FROM {china_address}
+//          WHERE `region_id` IN (SELECT DISTINCT `field_address_city` FROM {content_type_shop})
+//          AND `region_type`=2
+//  ";
+  return '';
+}
+
+/**
+ *  hook_form_FORM_ID_alter
+ */
+function uc_shop_form_shop_node_form_alter(&$form, $form_state) {
+  $node = $form['#node'];
+  $domain_id = $node->field_domain_id[0]['value'];
+  if ($domain_id) {
+    $domain = domain_lookup($domain_id);
+    $form['domain_id'] = array(
+      '#type' => 'value',
+      '#value' => $domain_id,
+    );
+  }
+  $form['uc_shop'] = array(
+    '#type' => 'fieldset',
+    '#title' => '网店设置',
+    '#collapsible' => TRUE,
+  );
+  if (!variable_get('domain_allow_non_ascii', FALSE)) {
+    $description = t('Must contain only dots, lowercase alphanumeric characters, dashes and a colon (if using alternative ports).');
+    $description = '只能输入小写英文/数字、小数点、下划线。';
+  }
+  else {
+    $description = t('Must contain only dots, lowercase alphanumeric and ASCII characters, dashes and a colon (if using alternative ports).');
+  }
+  $form['uc_shop']['subdomain'] = array(
+    '#type' => 'textfield',
+    '#title' => '域名/子域名',
+    '#size' => 40,
+    '#maxlength' => 80,
+    '#required' => TRUE,
+    '#default_value' => !empty($domain) ? $domain['subdomain'] : '',
+    '#description' => '不要输入开头http://和末尾斜杠，' . $description,
+  );
+//  $form['uc_shop']['sitename'] = array(
+//    '#type' => 'textfield',
+//    '#title' => '站点名称',
+//    '#size' => 40,
+//    '#maxlength' => 80,
+//    '#required' => TRUE,
+//    '#default_value' => !empty($domain) ? $domain['sitename'] : '',
+//    '#description' => '显示在浏览器标题栏的站点名称。',
+//  );
+  $form['uc_shop']['scheme'] = array(
+//    '#type' => 'radios',
+//    '#title' => t('Domain URL scheme'),
+//    '#required' => TRUE,
+//    '#options' => array(
+//      'http' => 'http://',
+//      'https' => 'https://',
+//    ),
+//    '#default_value' => !empty($domain) ? $domain['scheme'] : 'http',
+//    '#description' => t('The URL scheme for accessing this domain.'),
+    '#type'   => 'value',
+    '#value'  => 'http',
+  );
+  $form['uc_shop']['valid'] = array(
+    '#type' => 'radios',
+    '#title' => '启用状态',
+    '#required' => TRUE,
+    '#options' => array(
+      1 => t('Active'),
+      0 => t('Inactive'),
+    ),
+    '#default_value' => isset($domain) ? $domain['valid'] : 1,
+    '#description' => '设为无效，则无法打开该域名。',
+  );
+  $form['#after_build'][] = 'uc_shop_node_form_after_build';
+  $form['#validate'][] = 'uc_shop_node_form_validate';
+}
+
+/**
+ * uc_shop_node_form_after_build 
+ */
+function uc_shop_node_form_after_build($form, &$form_state) {
+  unset($form['field_domain_id']);
+  //$form['field_domain_id']['value']['#options'] = _uc_shop_idle_domains($domain_id);
+  return $form;
+}
+
+/**
+ *  uc_shop_node_form_validate 
+ */
+function uc_shop_node_form_validate($form, &$form_state) {
+  $subdomain = $form_state['values']['subdomain'];
+  $error_list = array();
+  $domain_changed = (bool) strcmp($form_state['values']['subdomain'], $form['uc_shop']['subdomain']['#default_value']);
+  if ($domain_changed && !domain_unique_domain($subdomain)) {
+    $error_list[] = '域名已被占用。';
+  }
+  $error = domain_valid_domain($subdomain);
+  if (!empty($error)) {
+    $error_list[] = $error;
+  }
+  foreach ($error_list as $error) {
+    form_set_error('subdomain', $error);
+  }
+}
+
+/**
+ * hook_nodeapi
+ */
+function uc_shop_nodeapi(&$node, $op, $teaser, $page) {
+  switch ($op) {
+    case 'insert':
+    case 'update':
+      if ($node->type == 'shop') {
+        _uc_shop_domain_save($node);
+      }
+      break;
+    case 'delete':
+      break;
+  }
+}
+
+/**
+ *  _uc_shop_domain_save
+ * @param type $node 
+ */
+function _uc_shop_domain_save($node) {
+  $values = array(
+    'subdomain' => $node->subdomain,
+    'sitename' => $node->title,
+    'scheme' => $node->scheme,
+    'valid' => $node->valid,
+    'domain_id' => $node->domain_id?$node->domain_id:NULL,
+  );
+  // Set the proper message
+  if (!empty($values['domain_id'])) {
+    $message = t('Domain record updated.');
+  }
+  else {
+    $message = t('Domain record created.');
+  }
+  // Run the save routine.
+  $domain = domain_save($values, $form_state);
+
+  // If return is not a $domain array, something went wrong.
+  if ($domain == -1) {
+    $message = t('Domain record failed.');
+  } else {
+      $sql = "UPDATE {content_type_shop} set `field_domain_id_value`=%d WHERE vid=%d";
+      $result = db_query($sql, $domain['domain_id'], $node->vid);
+  }
+
+  drupal_set_message($message);
+}
+
+/**
+ *  hook_user 
+ */
+function uc_shop_user($op, &$edit, &$account, $category = NULL) {
+  global $user;
+  switch($op) {
+    case 'view':
+      if (domain_admin_access('administer own domains') && $user->uid == $account->uid) {  //if domain admin
+        $links = array();
+        foreach ($account->domain_user as $domain_id) {
+          $domain = domain_load($domain_id);
+          $links['domain_'. $domain_id] = array(
+            '#title'  => $domain['sitename'],
+            '#type'   => 'user_profile_item',
+            '#value'  => l($domain['subdomain'], $domain['scheme'].'://'.$domain['subdomain']),
+            '#type'   => 'user_profile_item',
+          );
+        }
+        if ($links) {
+          $uc_shop = $links;
+          $uc_shop['#title'] = '我的网店';
+          $uc_shop['#type'] = 'user_profile_category';
+          $account->content['uc_shop'] = $uc_shop;
+    //      dpm($uc_shop);
+        }
+        
+      }
+			
+			if (user_access('view all restricted content', $account)  && $user->uid == $account->uid) {
+				$shortcut = array(
+					'#title'	=>	'快捷方式',
+          '#type'   => 'user_profile_category',
+					'link'		=>	array(
+						'#type'		=>	'user_profile_item',
+						'#title'	=>	'网络学院',
+						'#value'	=>	l('&gt;&gt; 点击进入', 'instruction-list', array('html' => TRUE)),
+					),
+				);
+				$account->content['shortcut'] = $shortcut;
+			}
+			
+      break;
+  }
+}
+
+/**
+ *  hook_menu_alter(&$items)
+ */
+function uc_shop_menu_alter(&$items) {
+  $items['user/%user/orders']['page callback'] = 'uc_shop_order_history';
+  $items['user/%user/orders']['file path'] = drupal_get_path('module', 'uc_shop');
+  $items['user/%user/orders']['file'] = 'uc_shop_order_history.inc';
+}
+
+/**
+ * hook_preprocess_node(&$variables) 
+ */
+function uc_shop_preprocess_node(&$variables) {
+  $node = $variables['node'];
+  if ($variables['teaser']) {
+    $variables['template_files'][] = 'node-teaser';
+    $variables['template_files'][] = 'node-teaser-'. $variables['node']->type;
+  }
+  if (uc_product_is_product($variables['type'])) {
+    foreach ($node->taxonomy as $key => $term) {
+      if ($term->vid==1) {  //品牌 vocabulary
+        break;
+      }
+    }
+    $variables['brand'] = '<div class="product-brand">品牌: <span class="title">'. l($term->name, 'product/term/'.$term->tid). '</span></div>';
+  }
+}
+
+/**
+ * uc_shop_admincp_access
+ * menu access callback 
+ */
+function uc_shop_admincp_access($perm) {
+  global $user;
+  global $_domain;
+  $user_domains = $user->domain_user;
+  $domain_id = $_domain['domain_id'];
+  if (array_key_exists($domain_id, $user_domains) && domain_admin_access($perm)) {
+    return TRUE;
+  } else {
+    return FALSE;
+  }
+}

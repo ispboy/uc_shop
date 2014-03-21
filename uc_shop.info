@@ -1,0 +1,8 @@
+name = Ubercart Shop
+description = Ubercart Shop (multi-verndor)
+dependencies[] = uc_cart
+dependencies[] = uc_domain
+dependencies[] = domain_admin
+core = 6.x
+package = Ubercart - core (optional)
+version = "6.x-dev"

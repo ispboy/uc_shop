@@ -1,0 +1,39 @@
+<?php
+/**
+ * @file
+ * Install file for the uc_shop module
+ */
+
+/**
+ * Implement hook_install()
+ *
+ * @ingroup drupal
+ */
+function uc_shop_install() {
+  drupal_install_schema('uc_shop');
+}
+
+/**
+ * Implement hook_schema()
+ */
+function uc_shop_schema() {
+//  $schema['uc_shop_cart'] = array(
+//    'fields' => array(
+//      'domain_id' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
+//      'cart_item_id' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
+//    ),
+//    'indexes' => array(
+//      'domain_id' => array('domain_id'),
+//      'cart_item_id' => array('cart_item_id')
+//    ),
+//  );
+//  return $schema;
+}
+
+/**
+ * Implement hook_uninstall()
+ */
+function uc_shop_uninstall() {
+  // Now drop the storage table.
+  drupal_uninstall_schema('uc_shop');
+}
