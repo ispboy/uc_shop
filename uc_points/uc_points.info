@@ -1,0 +1,7 @@
+name = Ubercart Points
+description = Ubercart userpoints payment
+dependencies[] = uc_cart
+dependencies[] = userpoints
+core = 6.x
+package = Ubercart - core (optional)
+version = "6.x-dev"

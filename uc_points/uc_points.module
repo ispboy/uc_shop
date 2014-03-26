@@ -1,0 +1,184 @@
+<?php
+/**
+ * @file
+ * ubercart userpoints payment
+ * uc_points
+ */
+
+/**
+ * Implementation of hook_payment_method().
+ */
+ 
+function uc_points_payment_method() {
+  global $user;
+
+  // need config
+  $cats = _uc_points_cat();
+  
+  //get total points of cart
+  (_uc_points_get_cart_points('lm'));
+  
+ 
+  $terms = userpoints_get_categories();
+  
+  foreach ($cats as $key => $tag) {
+    if (array_key_exists($key, $terms)) {
+      $amount = userpoints_get_current_points($user->uid, $key);
+      $name = $terms[$key];
+      $total = _uc_points_get_cart_points($tag);
+      $prefix = $total ? $total: '不可以使用';
+      $methods[] = array(
+        'id' => 'ucpoints_'. $tag, 
+        'name' => $name, 
+        'title' => $prefix. $name. ' (你的账户余额: '. $amount. ')', 
+        'desc' => '使用'. $name. '支付', 
+        'callback' => '_uc_points_payment_method_callback_'.$tag, 
+        'weight' => 1, 
+        'checkout' => FALSE,
+        'no_gateway' => TRUE,
+      );
+    }
+  }
+
+  return $methods;
+}
+
+/**
+ * Implementation of hook_order().
+ */
+ 
+function uc_points_order($op, &$arg1, $arg2) {
+  $order 	 = $arg1;
+  $arr = explode('_', $order->payment_method);
+  if (!$arr || count($arr)!=2) {
+    return FALSE;
+  }
+  $paymethod = $arr[0];
+  $tag = $arr[1];
+  switch ($op) {
+		case 'submit':
+			// fires when the order is submitted and adds/subtracts thier points
+			if ($paymethod == 'ucpoints') {
+				_uc_points_pay($order, $tag);
+			}
+			break;
+		case 'update':
+			// if the order is canceled we need to refund thier points because we are too lazy to do it by hand...
+			if ($arg2 == 'canceled') {
+				if ($paymethod == 'ucpoints') {
+					// uc_userpoints_payment_refund($order);
+				}
+			}
+			break;
+		case 'delete':	
+		  if ($paymethod == 'ucpoints') {
+        // uc_userpoints_payment_refund($order);
+	  	}
+		  break;
+		case 'can_delete';
+		  return FALSE;
+	  	break;
+	  }
+}
+
+//========= procedure, callbacks =============================================
+/**
+ * _uc_points_payment_method_callback
+ */
+function _uc_points_payment_method_callback($tag, $op, &$arg1, $silent = FALSE) {
+  switch ($op) {
+    case 'cart-details':
+			break;
+		case 'cart-process':
+      $cats = _uc_points_cat();
+      $cats = array_flip($cats);
+      $points = userpoints_get_current_points($arg1->uid, $cats[$tag]);
+      $total = _uc_points_get_cart_points($tag);
+      if (!$total) {
+        drupal_set_message('购物车中存在不符合支付条件的商品', 'error');
+      } elseif ($total>$points) {
+        drupal_set_message('余额不足', 'error');
+      } elseif ($total<=$points) {
+        return TRUE;
+      }
+
+      return FALSE;
+
+      break;
+  }  
+}
+
+function _uc_points_payment_method_callback_lm($op, &$arg1, $silent = FALSE) {
+  return _uc_points_payment_method_callback('lm', $op, $arg1, $silent);
+}
+
+function _uc_points_payment_method_callback_jf($op, &$arg1, $silent = FALSE) {
+  return _uc_points_payment_method_callback('jf', $op, $arg1, $silent);
+}
+
+/**
+ * get cart total points value 
+ */
+function _uc_points_get_cart_points($tag) {
+  $total = 0;
+  $items = uc_cart_get_contents();
+  foreach($items as $item) {
+    $node = (array)node_load($item->nid);
+    $key = 'field_'. $tag. '_price';
+    $val = $node[$key][0]['value'];
+    if (!$val) {
+      return FALSE;
+    } else {
+      $total += $val * $item->qty;
+    }
+  }
+  return $total;
+}
+
+/**
+ * Pay order
+ * @global type $user
+ * @param type $order 
+ */
+function _uc_points_pay($order, $tag) {
+  global $user;
+
+  $cats = _uc_points_cat();
+  $cats = array_flip($cats);
+  
+  $points = _uc_points_get_cart_points($tag);
+  $description = t('Order #!order_id paid with !points', array('!order_id' => $order->order_id, '!points' => $tag.'兑换'));
+
+  if ($order === FALSE || uc_order_status_data($order->order_status, 'state') != 'in_checkout') {
+		print t('An error has occurred during payment.  Please contact us to ensure your order has submitted.');
+		exit();
+  }
+
+  $params = array (
+    'tid' => $cats[$tag],
+    'uid' => $order->uid,
+    'points' => -$points,
+    'operation' => 'purchase',
+    'description' => $description,
+    'entity_id' => $order->order_id,
+    'entity_type' => 'uc_order',
+    'moderate' => 0,
+    'display' => 1,
+  );
+  userpoints_userpointsapi($params);
+  //uc_order_comment_save($order->order_id, $user->uid, '买家已使用'.$tag.'支付', 'order', 'payment_received');
+  uc_payment_enter($order->order_id, 'ucpoints_'.$tag, $points, $user->uid, NULL, $description);
+
+  
+  watchdog('uc_points', $description);
+}
+
+/**
+ * _uc_points_cat
+ */
+function _uc_points_cat() {
+  return  array(
+    '27' => 'lm',
+    '28' => 'jf',
+  );
+}

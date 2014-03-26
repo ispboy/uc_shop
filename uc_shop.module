@@ -87,6 +87,8 @@ function uc_shop_test() {
 //          WHERE `region_id` IN (SELECT DISTINCT `field_address_city` FROM {content_type_shop})
 //          AND `region_type`=2
 //  ";
+  $str = 'uc_points_lm';
+  dpm(explode('_', $str, -1));
   return '';
 }
 
@@ -304,10 +306,10 @@ function uc_shop_preprocess_node(&$variables) {
   if (uc_product_is_product($variables['type'])) {
     foreach ($node->taxonomy as $key => $term) {
       if ($term->vid==1) {  //品牌 vocabulary
+        $variables['brand'] = '<div class="product-brand">品牌: <span class="title">'. l($term->name, 'product/term/'.$term->tid). '</span></div>';
         break;
       }
     }
-    $variables['brand'] = '<div class="product-brand">品牌: <span class="title">'. l($term->name, 'product/term/'.$term->tid). '</span></div>';
   }
 }
 
@@ -325,4 +327,32 @@ function uc_shop_admincp_access($perm) {
   } else {
     return FALSE;
   }
+}
+
+/**
+* Implementation of hook_ca_condition().
+*/
+function uc_shop_ca_condition() {
+  return array(
+    'uc_shop_condition_product_shippable' => array(
+      '#title' => t("Order has a product which is shippable"),
+      '#category' => t('Order: Product'),
+      '#callback' => '_uc_shop_condition_product_shippable',
+      '#arguments' => array(
+        'order' => array('#entity' => 'uc_order', '#title' => t('Order')),
+      ),
+    ),
+  );
+} 
+
+//=============== custom procedure / callback =============================
+function _uc_shop_condition_product_shippable($order, $settings) {
+  $result = FALSE;
+  foreach ($order->products as $product) {
+    if ($product->nid && $product->shippable) {
+      $result = TRUE;
+      break;
+    }
+  }
+  return $result;  
 }
